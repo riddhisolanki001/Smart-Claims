@@ -1,0 +1,111 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-08-19 11:34:53.922509",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_l3pf",
+  "invoice_number",
+  "insurance_type",
+  "cover_period_end",
+  "termina7on_date",
+  "amended_from",
+  "column_break_tdao",
+  "invoice_date",
+  "company_id",
+  "cover_period_start",
+  "current_invoice_amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_l3pf",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "invoice_number",
+   "fieldtype": "Link",
+   "label": "Invoice Number",
+   "options": "Sales Invoice"
+  },
+  {
+   "fieldname": "insurance_type",
+   "fieldtype": "Data",
+   "label": "Insurance Type"
+  },
+  {
+   "fieldname": "cover_period_end",
+   "fieldtype": "Date",
+   "label": "Cover Period End"
+  },
+  {
+   "fieldname": "termina7on_date",
+   "fieldtype": "Date",
+   "label": "Termination Date"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Credit Note Invoice Data",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_tdao",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "invoice_date",
+   "fieldtype": "Date",
+   "label": "Invoice Date"
+  },
+  {
+   "fieldname": "company_id",
+   "fieldtype": "Link",
+   "label": "Company ID",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "cover_period_start",
+   "fieldtype": "Date",
+   "label": "Cover Period Start"
+  },
+  {
+   "fieldname": "current_invoice_amount",
+   "fieldtype": "Currency",
+   "label": "Current Invoice Amount"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-08-19 11:50:13.675040",
+ "modified_by": "Administrator",
+ "module": "Smartclaims",
+ "name": "Credit Note Invoice Data",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

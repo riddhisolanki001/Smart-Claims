@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-08-19 11:47:15.967876",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "details_section",
+  "plan",
+  "number_of_members_per_plan",
+  "premium_amount_per_plan"
+ ],
+ "fields": [
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "plan",
+   "fieldtype": "Data",
+   "label": "Plans"
+  },
+  {
+   "fieldname": "number_of_members_per_plan",
+   "fieldtype": "Data",
+   "label": "Number of Members per Plan"
+  },
+  {
+   "fieldname": "premium_amount_per_plan",
+   "fieldtype": "Data",
+   "label": "Premium Amount per Plan"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-08-19 11:50:05.966962",
+ "modified_by": "Administrator",
+ "module": "Smartclaims",
+ "name": "Invoice Breakdown for Appropriaton",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
