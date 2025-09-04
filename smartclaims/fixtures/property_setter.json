@@ -1,0 +1,18 @@
+[
+ {
+  "default_value": null,
+  "doc_type": "Purchase Invoice",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "field_name": "supplier",
+  "is_system_generated": 0,
+  "modified": "2025-09-04 13:07:08.414973",
+  "module": "Smartclaims",
+  "name": "Sales Invoice-supplier-reqd",
+  "property": "reqd",
+  "property_type": "Check",
+  "row_name": null,
+  "value": "0"
+ }
+]
