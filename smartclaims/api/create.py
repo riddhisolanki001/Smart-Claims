@@ -185,8 +185,6 @@ def create_sales_invoice(**kwargs):
         if not invoice_number or not company or not posting_date:
             frappe.local.response["http_status_code"] = 400
             return {"status": "failed", "error": "Invoice Number, Company ID and Invoice Date are required"}
-
-        # Check if company exists
     
 
         # Create Sales Invoice doc
@@ -201,7 +199,6 @@ def create_sales_invoice(**kwargs):
             "custom_next_invoice_date": kwargs.get("next_invoice_date"),
             "custom_insurance_type": kwargs.get("insurance_type"),
             "custom_card_option": kwargs.get("card_option"),
-            "due_date": kwargs.get("due_date"),
             "items": []
         })
 
@@ -239,3 +236,50 @@ def create_sales_invoice(**kwargs):
         frappe.local.response["http_status_code"] = 500
         return {"status": "failed", "error": str(e)}
 
+# Create Credit Note
+# api/method/smartclaims.api.create.create_credit_note
+@frappe.whitelist()
+def create_credit_note(**kwargs):
+    try:
+        invoice_number = kwargs.get("invoice_number")
+        insurance_type = kwargs.get("insurance_type")
+
+        # 🔹 Mandatory fields
+        if not invoice_number or not insurance_type:
+            frappe.local.response["http_status_code"] = 400
+            return {"status": "failed", "error": "Invoice Number and Insurance Type are required"}
+
+        # 🔹 Check for duplicates
+        sales_invoice = frappe.get_all(
+            "Sales Invoice",
+            filters={"name": invoice_number},  # or use custom_invoice_number if that's your field
+            pluck="name"
+        )
+        if not sales_invoice:
+            frappe.local.response["http_status_code"] = 404
+            return {"status": "failed", "error": f"Sales Invoice '{invoice_number}' not found"}
+
+        # 🔹 Build Credit Note doc
+        credit_note_doc = frappe.get_doc({"doctype": "Credit Note"})
+        meta = frappe.get_meta("Credit Note")
+
+        # Map only valid fields from kwargs
+        for key, value in kwargs.items():
+            if meta.has_field(key):
+                credit_note_doc.set(key, value)
+
+        # 🔹 Insert doc
+        credit_note_doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        frappe.local.response["http_status_code"] = 201
+        return {"status": "success", "name": credit_note_doc.name}
+
+    except frappe.PermissionError as e:
+        frappe.local.response["http_status_code"] = 403
+        return {"status": "failed", "error": str(e)}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "create_credit_note error")
+        frappe.local.response["http_status_code"] = 500
+        return {"status": "failed", "error": str(e)}

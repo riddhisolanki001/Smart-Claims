@@ -1,0 +1,120 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2025-09-11 11:58:26.438480",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_ium7",
+  "invoice_number",
+  "company_id",
+  "invoice_date",
+  "deactivation__termination_date",
+  "amended_from",
+  "column_break_eohl",
+  "insurance_type",
+  "cover_period_start",
+  "cover_period_end",
+  "current_invoice_amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_ium7",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Credit Note",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "invoice_number",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Invoice Number",
+   "options": "Sales Invoice",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "invoice_number.custom_company_id",
+   "fieldname": "company_id",
+   "fieldtype": "Data",
+   "label": "Company ID"
+  },
+  {
+   "fieldname": "invoice_date",
+   "fieldtype": "Date",
+   "label": "Invoice Date"
+  },
+  {
+   "fetch_from": "invoice_number.custom_cover_period_start",
+   "fieldname": "cover_period_start",
+   "fieldtype": "Date",
+   "label": "Cover Period Start"
+  },
+  {
+   "fetch_from": "invoice_number.custom_cover_period_end",
+   "fieldname": "cover_period_end",
+   "fieldtype": "Date",
+   "label": "Cover Period End"
+  },
+  {
+   "fieldname": "deactivation__termination_date",
+   "fieldtype": "Date",
+   "label": "Deactivation / Termination Date"
+  },
+  {
+   "fieldname": "current_invoice_amount",
+   "fieldtype": "Currency",
+   "label": "Current Invoice Amount"
+  },
+  {
+   "fetch_from": "invoice_number.custom_insurance_type",
+   "fieldname": "insurance_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Insurance Type",
+   "options": "TPA\nPure Insurance",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_eohl",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-09-11 14:06:11.993619",
+ "modified_by": "Administrator",
+ "module": "Smartclaims",
+ "name": "Credit Note",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "invoice_number"
+}
