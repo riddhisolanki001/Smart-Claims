@@ -34,14 +34,12 @@
   },
   {
    "fieldname": "invoice_number",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Invoice Number",
-   "options": "Sales Invoice",
    "reqd": 1
   },
   {
-   "fetch_from": "invoice_number.custom_company_id",
    "fieldname": "company_id",
    "fieldtype": "Data",
    "label": "Company ID"
@@ -52,13 +50,11 @@
    "label": "Invoice Date"
   },
   {
-   "fetch_from": "invoice_number.custom_cover_period_start",
    "fieldname": "cover_period_start",
    "fieldtype": "Date",
    "label": "Cover Period Start"
   },
   {
-   "fetch_from": "invoice_number.custom_cover_period_end",
    "fieldname": "cover_period_end",
    "fieldtype": "Date",
    "label": "Cover Period End"
@@ -74,7 +70,6 @@
    "label": "Current Invoice Amount"
   },
   {
-   "fetch_from": "invoice_number.custom_insurance_type",
    "fieldname": "insurance_type",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -91,7 +86,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-09-11 14:06:11.993619",
+ "modified": "2025-09-11 16:14:20.522239",
  "modified_by": "Administrator",
  "module": "Smartclaims",
  "name": "Credit Note",

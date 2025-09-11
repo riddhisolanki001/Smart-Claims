@@ -250,14 +250,19 @@ def create_credit_note(**kwargs):
             return {"status": "failed", "error": "Invoice Number and Insurance Type are required"}
 
         # 🔹 Check for duplicates
+        # sales_invoice = frappe.get_all(
+        #     "Sales Invoice",
+        #     filters={"name": invoice_number},  # or use custom_invoice_number if that's your field
+        #     pluck="name"
+        # )
         sales_invoice = frappe.get_all(
             "Sales Invoice",
-            filters={"name": invoice_number},  # or use custom_invoice_number if that's your field
-            pluck="name"
+            filters={"custom_invoice_number": invoice_number}, 
+            pluck="custom_invoice_number"
         )
         if not sales_invoice:
             frappe.local.response["http_status_code"] = 404
-            return {"status": "failed", "error": f"Sales Invoice '{invoice_number}' not found"}
+            return {"status": "failed", "error": f"Invoice Number '{invoice_number}' not found"}
 
         # 🔹 Build Credit Note doc
         credit_note_doc = frappe.get_doc({"doctype": "Credit Note"})
