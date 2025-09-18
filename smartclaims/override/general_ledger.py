@@ -42,7 +42,7 @@ from erpnext.accounts.doctype.payment_entry.payment_entry import PaymentEntry
 def custom_add_tax_gl_entries(self, gl_entries):
     if self.apply_tax_withholding_amount:
         if gl_entries:
-            first_account = gl_entries[0]["account"]  # Store first account (Health Services)
+            first_account = gl_entries[0]["account"]  # Store first account
 
         for d in self.get("taxes"):
             account_currency = get_account_currency(d.account_head)
@@ -62,7 +62,7 @@ def custom_add_tax_gl_entries(self, gl_entries):
             # Create reversal entry first (for proper ordering)
             if not d.included_in_paid_amount:
                 reversal_entry = {
-                    "account": first_account,  # <-- Use first GL entry account (Health Services)
+                    "account": first_account,  # <-- Use first GL entry account
                     "against": against,
                     rev_dr_or_cr: d.tax_amount,
                     rev_dr_or_cr + "_in_account_currency": d.base_tax_amount if account_currency == self.company_currency else d.tax_amount,
@@ -74,7 +74,7 @@ def custom_add_tax_gl_entries(self, gl_entries):
                 # Only set party_type/party if the account is Receivable/Payable
                 account_type = frappe.get_value("Account", first_account, "account_type")
                 if account_type in ("Receivable", "Payable"):
-                    reversal_entry["party_type"] = "Supplier"  # or "Customer" depending on the party
+                    reversal_entry["party_type"] = "Supplier"  
                     reversal_entry["party"] = self.party
 
                 gl_entries.append(self.get_gl_dict(reversal_entry, account_currency, item=d))

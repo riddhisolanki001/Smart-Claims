@@ -1,4 +1,5 @@
 import frappe
+from frappe.utils import getdate
 
 # Create customer
 # api/method/smartclaims.api.create.create_company 
@@ -288,3 +289,93 @@ def create_credit_note(**kwargs):
         frappe.log_error(frappe.get_traceback(), "create_credit_note error")
         frappe.local.response["http_status_code"] = 500
         return {"status": "failed", "error": str(e)}
+
+
+
+@frappe.whitelist()
+def create_adjustment_journal_entry(**kwargs):
+    """
+    Dummy JSON Input:
+    {
+        "type": "Adjustment Journal",
+        "approval_date": "2025-09-17",
+        "journal_number": "JN-00045",
+        "entries": [
+            {
+                "provider_id": "01-02-00269 SUNYANI MUNICIPAL HOSPITAL",
+                "invoice_number": "ACC-PINV-2025-00014",
+                "debit": 900,
+                "credit": 900
+            }
+        ]
+    }
+    """
+    try:
+        # Parse entries JSON string if passed as string
+        entries = kwargs.get("accounts")
+        if isinstance(entries, str):
+            entries = frappe.parse_json(entries)
+
+        if not entries:
+            frappe.local.response["http_status_code"] = 400
+            return {"success": False, "message": "Invalid JSON : No entries provided"}
+
+        # Create parent Journal Entry
+        je = frappe.new_doc("Journal Entry")
+        je.type =  "Adjustment Journal"
+        je.posting_date = getdate(kwargs.get("approval_date"))
+        je.custom_type = kwargs.get("type")
+        je.custom_journal_number = kwargs.get("journal_number")
+        je.voucher_type = "Journal Entry"
+
+        # Add child rows
+        for entry in entries:
+            pi_account = frappe.get_doc("Purchase Invoice", entry.get("invoice_number"))
+            if not pi_account.credit_to:
+                frappe.local.response["http_status_code"] = 400
+                return {"success": False, "message": f"Supplier {entry.get('provider_id')} has no account set"}    
+                
+
+            je.append("accounts", {
+                "account": pi_account.credit_to,
+                "party_type": "Supplier",
+                "party": entry.get("provider_id"),
+                "reference_type": "Purchase Invoice",
+                "reference_name": entry.get("invoice_number"),
+                "debit_in_account_currency": entry.get("debit", 0),
+                "credit_in_account_currency": 0
+            })
+
+            # --- Credit row (Expense account from Purchase Invoice) ---
+            if entry.get("invoice_number"):
+                try:
+                    pi_doc = frappe.get_doc("Purchase Invoice", entry.get("invoice_number"))
+                    expense_account = None
+                    if pi_doc.get("items"):
+                        expense_account = pi_doc.items[0].get("expense_account")
+                    
+                    if not expense_account:
+                        frappe.local.response["http_status_code"] = 400
+                        return {"success": False, "message": f"Purchase Invoice {entry.get('invoice_number')} has no expense account set"}  
+                    
+                    je.append("accounts", {
+                        "account": expense_account or "",
+                        "debit_in_account_currency": 0,
+                        "credit_in_account_currency": entry.get("credit", 0)
+                    })
+
+                except frappe.DoesNotExistError:
+                    frappe.local.response["http_status_code"] = 404
+                    return {"success": False, "message": f"Purchase Invoice {entry.get('invoice_number')} not found"}
+
+        je.insert(ignore_permissions=True)
+        je.submit()
+        frappe.db.commit()
+
+        frappe.local.response["http_status_code"] = 201
+        return {"success": True, "message": "Journal Entry created Successfully", "Journal Entry":je.as_dict()}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Adjustment Journal Entry API Error")
+        frappe.local.response["http_status_code"] = 500
+        return {"success": False, "message": str(e)}
