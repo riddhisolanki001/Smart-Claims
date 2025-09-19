@@ -293,11 +293,11 @@ def create_credit_note(**kwargs):
 
 
 @frappe.whitelist()
-def create_adjustment_journal_entry(**kwargs):
+def create_rejected_journal_entry(**kwargs):
     """
     Dummy JSON Input:
     {
-        "type": "Adjustment Journal",
+        "type": "Rejected Journal",
         "approval_date": "2025-09-17",
         "journal_number": "JN-00045",
         "entries": [
@@ -322,9 +322,8 @@ def create_adjustment_journal_entry(**kwargs):
 
         # Create parent Journal Entry
         je = frappe.new_doc("Journal Entry")
-        je.type =  "Adjustment Journal"
         je.posting_date = getdate(kwargs.get("approval_date"))
-        je.custom_type = kwargs.get("type")
+        je.custom_type =  "Rejected Journal"
         je.custom_journal_number = kwargs.get("journal_number")
         je.voucher_type = "Journal Entry"
 
@@ -333,7 +332,7 @@ def create_adjustment_journal_entry(**kwargs):
             pi_account = frappe.get_doc("Purchase Invoice", entry.get("invoice_number"))
             if not pi_account.credit_to:
                 frappe.local.response["http_status_code"] = 400
-                return {"success": False, "message": f"Supplier {entry.get('provider_id')} has no account set"}    
+                return {"success": False, "message": f"Purchase Invoice {entry.get('provider_id')} has no account set"}    
                 
 
             je.append("accounts", {
