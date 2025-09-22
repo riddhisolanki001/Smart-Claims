@@ -326,6 +326,7 @@ def create_rejected_journal_entry(**kwargs):
         je.custom_type =  "Rejection Journal"
         je.custom_journal_number = kwargs.get("journal_number")
         je.voucher_type = "Journal Entry"
+        je.custom_journal_type = "Claims" 
 
         # Add child rows
         for entry in entries:
@@ -375,6 +376,426 @@ def create_rejected_journal_entry(**kwargs):
         return {"success": True, "message": "Journal Entry created Successfully", "Journal Entry":je.as_dict()}
 
     except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Rejection Journal Entry API Error")
+        frappe.local.response["http_status_code"] = 500
+        return {"success": False, "message": str(e)}
+    
+@frappe.whitelist()
+def create_withholding_journal_entry(**kwargs):
+    """
+    Dummy JSON Input:
+    {
+        "type": "Withholding Journal",
+        "approval_date": "2025-09-17",
+        "journal_number": "JN-00045",
+        "entries": [
+            {
+                "provider_id": "01-02-00269 SUNYANI MUNICIPAL HOSPITAL",
+                "invoice_number": "ACC-PINV-2025-00014",
+                "debit": 900,
+                "credit": 900
+            }
+        ]
+    }
+    """
+    try:
+        # Parse entries JSON string if passed as string
+        entries = kwargs.get("accounts")
+        if isinstance(entries, str):
+            entries = frappe.parse_json(entries)
+
+        if not entries:
+            frappe.local.response["http_status_code"] = 400
+            return {"success": False, "message": "Invalid JSON : No entries provided"}
+
+        # Create parent Journal Entry
+        je = frappe.new_doc("Journal Entry")
+        je.posting_date = getdate(kwargs.get("approval_date"))
+        je.custom_type =  "Withholding Journal"
+        je.custom_journal_number = kwargs.get("journal_number")
+        je.voucher_type = "Journal Entry"
+        je.custom_journal_type = "Claims" 
+
+        # Add child rows
+        for entry in entries:
+            pi_account = frappe.get_doc("Purchase Invoice", entry.get("invoice_number"))
+            if not pi_account.credit_to:
+                frappe.local.response["http_status_code"] = 400
+                return {"success": False, "message": f"Purchase Invoice {entry.get('provider_id')} has no account set"}    
+                
+
+            je.append("accounts", {
+                "account": pi_account.credit_to,
+                "party_type": "Supplier",
+                "party": entry.get("provider_id"),
+                "reference_type": "Purchase Invoice",
+                "reference_name": entry.get("invoice_number"),
+                "debit_in_account_currency": entry.get("debit", 0),
+                "credit_in_account_currency": 0
+            })
+
+            # Withholding Account
+            je.append("accounts", {
+                        "account": "04-04-003 - Withholding Taxes - NMICL" or "",
+                        "debit_in_account_currency": 0,
+                        "credit_in_account_currency": entry.get("credit", 0)
+                    })
+                        
+        je.insert(ignore_permissions=True)
+        je.submit()
+        frappe.db.commit()
+
+        frappe.local.response["http_status_code"] = 201
+        return {"success": True, "message": "Journal Entry created Successfully", "Journal Entry":je.as_dict()}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Withholding Journal Entry API Error")
+        frappe.local.response["http_status_code"] = 500
+        return {"success": False, "message": str(e)}
+    
+    
+    
+@frappe.whitelist()
+def create_adjustment_journal_entry(**kwargs):
+    """
+    Dummy JSON Input:
+    {
+        "type": "Adjustment Journal",
+        "approval_date": "2025-09-17",
+        "journal_number": "JN-00045",
+        "entries": [
+            {
+                "provider_id": "01-02-00269 SUNYANI MUNICIPAL HOSPITAL",
+                "invoice_number": "ACC-PINV-2025-00014",
+                "debit": 900,
+                "credit": 900
+            }
+        ]
+    }
+    """
+    try:
+        # Parse entries JSON string if passed as string
+        entries = kwargs.get("accounts")
+        if isinstance(entries, str):
+            entries = frappe.parse_json(entries)
+
+        if not entries:
+            frappe.local.response["http_status_code"] = 400
+            return {"success": False, "message": "Invalid JSON : No entries provided"}
+
+        # Create parent Journal Entry
+        je = frappe.new_doc("Journal Entry")
+        je.posting_date = getdate(kwargs.get("approval_date"))
+        je.custom_type =  "Adjustment Journal"
+        je.custom_journal_number = kwargs.get("journal_number")
+        je.voucher_type = "Journal Entry"
+        je.custom_journal_type = "Claims" 
+
+        # Add child rows
+        for entry in entries:
+            pi_account = frappe.get_doc("Purchase Invoice", entry.get("invoice_number"))
+            if not pi_account.credit_to:
+                frappe.local.response["http_status_code"] = 400
+                return {"success": False, "message": f"Purchase Invoice {entry.get('provider_id')} has no account set"}    
+                
+
+            je.append("accounts", {
+                "account": pi_account.credit_to,
+                "party_type": "Supplier",
+                "party": entry.get("provider_id"),
+                "reference_type": "Purchase Invoice",
+                "reference_name": entry.get("invoice_number"),
+                "credit_in_account_currency": entry.get("credit", 0),
+                "debit_in_account_currency": 0
+            })
+
+           # --- Credit row (Expense account from Purchase Invoice) ---
+            if entry.get("invoice_number"):
+                try:
+                    pi_doc = frappe.get_doc("Purchase Invoice", entry.get("invoice_number"))
+                    expense_account = None
+                    if pi_doc.get("items"):
+                        expense_account = pi_doc.items[0].get("expense_account")
+                    
+                    if not expense_account:
+                        frappe.local.response["http_status_code"] = 400
+                        return {"success": False, "message": f"Purchase Invoice {entry.get('invoice_number')} has no expense account set"}  
+                    
+                    je.append("accounts", {
+                        "account": expense_account or "",
+                        "credit_in_account_currency": 0,
+                        "debit_in_account_currency": entry.get("debit", 0)
+                    })
+
+                except frappe.DoesNotExistError:
+                    frappe.local.response["http_status_code"] = 404
+                    return {"success": False, "message": f"Purchase Invoice {entry.get('invoice_number')} not found"}
+                
+                
+        je.insert(ignore_permissions=True)
+        je.submit()
+        frappe.db.commit()
+
+        frappe.local.response["http_status_code"] = 201
+        return {"success": True, "message": "Journal Entry created Successfully", "Journal Entry":je.as_dict()}
+
+    except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Adjustment Journal Entry API Error")
         frappe.local.response["http_status_code"] = 500
         return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def create_refund_rejected_journal_entry(**kwargs):
+    """
+    Dummy JSON Input:
+    {
+        "type": "Rejection Journal",
+        "approval_date": "2025-09-17",
+        "journal_number": "JN-00045",
+        "entries": [
+            {
+                "member_number": "01-02-00269 SUNYANI MUNICIPAL HOSPITAL",
+                "refund_id": "ACC-PINV-2025-00014",
+                "debit": 900,
+                "credit": 900
+            }
+        ]
+    }
+    """
+    try:
+        # Parse entries JSON string if passed as string
+        entries = kwargs.get("accounts")
+        if isinstance(entries, str):
+            entries = frappe.parse_json(entries)
+
+        if not entries:
+            frappe.local.response["http_status_code"] = 400
+            return {"success": False, "message": "Invalid JSON : No entries provided"}
+
+        # Create parent Journal Entry
+        je = frappe.new_doc("Journal Entry")
+        je.posting_date = getdate(kwargs.get("approval_date"))
+        je.custom_type =  "Rejection Journal"
+        je.custom_journal_number = kwargs.get("journal_number")
+        je.voucher_type = "Journal Entry"   
+        je.custom_journal_type = "Refund" 
+
+
+        # Add child rows
+        for entry in entries:
+            pi_account = frappe.get_doc("Purchase Invoice", entry.get("refund_id"))
+            if not pi_account.credit_to:
+                frappe.local.response["http_status_code"] = 400
+                return {"success": False, "message": f"Purchase Invoice {entry.get('member_number')} has no account set"}    
+                
+
+            je.append("accounts", {
+                "account": pi_account.credit_to,
+                "party_type": "Supplier",
+                "party": entry.get("member_number"),
+                "reference_type": "Purchase Invoice",
+                "reference_name": entry.get("refund_id"),
+                "debit_in_account_currency": entry.get("debit", 0),
+                "credit_in_account_currency": 0
+            })
+
+            # --- Credit row (Expense account from Purchase Invoice) ---
+            if entry.get("refund_id"):
+                try:
+                    pi_doc = frappe.get_doc("Purchase Invoice", entry.get("refund_id"))
+                    expense_account = None
+                    if pi_doc.get("items"):
+                        expense_account = pi_doc.items[0].get("expense_account")
+                    
+                    if not expense_account:
+                        frappe.local.response["http_status_code"] = 400
+                        return {"success": False, "message": f"Purchase Invoice {entry.get('refund_id')} has no expense account set"}  
+                    
+                    je.append("accounts", {
+                        "account": expense_account or "",
+                        "debit_in_account_currency": 0,
+                        "credit_in_account_currency": entry.get("credit", 0)
+                    })
+
+                except frappe.DoesNotExistError:
+                    frappe.local.response["http_status_code"] = 404
+                    return {"success": False, "message": f"Purchase Invoice {entry.get('refund_id')} not found"}
+
+        je.insert(ignore_permissions=True)
+        je.submit()
+        frappe.db.commit()
+
+        frappe.local.response["http_status_code"] = 201
+        return {"success": True, "message": "Journal Entry created Successfully", "Journal Entry":je.as_dict()}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Rejection Refund Journal Entry API Error")
+        frappe.local.response["http_status_code"] = 500
+        return {"success": False, "message": str(e)}
+    
+
+@frappe.whitelist()
+def create_refund_withholding_journal_entry(**kwargs):
+    """
+    Dummy JSON Input:
+    {
+        "type": "Withholding Journal",
+        "approval_date": "2025-09-17",
+        "journal_number": "JN-00045",
+        "entries": [
+            {
+                "member_number": "01-02-00269 SUNYANI MUNICIPAL HOSPITAL",
+                "refund_id": "ACC-PINV-2025-00014",
+                "debit": 900,
+                "credit": 900
+            }
+        ]
+    }
+    """
+    try:
+        # Parse entries JSON string if passed as string
+        entries = kwargs.get("accounts")
+        if isinstance(entries, str):
+            entries = frappe.parse_json(entries)
+
+        if not entries:
+            frappe.local.response["http_status_code"] = 400
+            return {"success": False, "message": "Invalid JSON : No entries provided"}
+
+        # Create parent Journal Entry
+        je = frappe.new_doc("Journal Entry")
+        je.posting_date = getdate(kwargs.get("approval_date"))
+        je.custom_type =  "Withholding Journal"
+        je.custom_journal_number = kwargs.get("journal_number")
+        je.voucher_type = "Journal Entry"
+        je.custom_journal_type = "Refund" 
+
+        # Add child rows
+        for entry in entries:
+            pi_account = frappe.get_doc("Purchase Invoice", entry.get("refund_id"))
+            if not pi_account.credit_to:
+                frappe.local.response["http_status_code"] = 400
+                return {"success": False, "message": f"Purchase Invoice {entry.get('member_number')} has no account set"}    
+                
+
+            je.append("accounts", {
+                "account": pi_account.credit_to,
+                "party_type": "Supplier",
+                "party": entry.get("member_number"),
+                "reference_type": "Purchase Invoice",
+                "reference_name": entry.get("refund_id"),
+                "debit_in_account_currency": entry.get("debit", 0),
+                "credit_in_account_currency": 0
+            })
+
+            # Withholding Account
+            je.append("accounts", {
+                        "account": "04-04-003 - Withholding Taxes - NMICL" or "",
+                        "debit_in_account_currency": 0,
+                        "credit_in_account_currency": entry.get("credit", 0)
+                    })
+                        
+        je.insert(ignore_permissions=True)
+        je.submit()
+        frappe.db.commit()
+
+        frappe.local.response["http_status_code"] = 201
+        return {"success": True, "message": "Journal Entry created Successfully", "Journal Entry":je.as_dict()}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Withholding Journal Entry API Error")
+        frappe.local.response["http_status_code"] = 500
+        return {"success": False, "message": str(e)}
+    
+    
+@frappe.whitelist()
+def create_refund_adjustment_journal_entry(**kwargs):
+    """
+    Dummy JSON Input:
+    {
+        "type": "Adjustment Journal",
+        "approval_date": "2025-09-17",
+        "journal_number": "JN-00045",
+        "entries": [
+            {
+                "provider_id": "01-02-00269 SUNYANI MUNICIPAL HOSPITAL",
+                "invoice_number": "ACC-PINV-2025-00014",
+                "debit": 900,
+                "credit": 900
+            }
+        ]
+    }
+    """
+    try:
+        # Parse entries JSON string if passed as string
+        entries = kwargs.get("accounts")
+        if isinstance(entries, str):
+            entries = frappe.parse_json(entries)
+
+        if not entries:
+            frappe.local.response["http_status_code"] = 400
+            return {"success": False, "message": "Invalid JSON : No entries provided"}
+
+        # Create parent Journal Entry
+        je = frappe.new_doc("Journal Entry")
+        je.posting_date = getdate(kwargs.get("approval_date"))
+        je.custom_type =  "Adjustment Journal"
+        je.custom_journal_number = kwargs.get("journal_number")
+        je.voucher_type = "Journal Entry"
+        je.custom_journal_type = "Refund" 
+
+        # Add child rows
+        for entry in entries:
+            pi_account = frappe.get_doc("Purchase Invoice", entry.get("refund_id"))
+            if not pi_account.credit_to:
+                frappe.local.response["http_status_code"] = 400
+                return {"success": False, "message": f"Purchase Invoice {entry.get('member_number')} has no account set"}    
+                
+
+            je.append("accounts", {
+                "account": pi_account.credit_to,
+                "party_type": "Supplier",
+                "party": entry.get("member_number"),
+                "reference_type": "Purchase Invoice",
+                "reference_name": entry.get("refund_id"),
+                "credit_in_account_currency": entry.get("credit", 0),
+                "debit_in_account_currency": 0
+            })
+
+           # --- Credit row (Expense account from Purchase Invoice) ---
+            if entry.get("refund_id"):
+                try:
+                    pi_doc = frappe.get_doc("Purchase Invoice", entry.get("refund_id"))
+                    expense_account = None
+                    if pi_doc.get("items"):
+                        expense_account = pi_doc.items[0].get("expense_account")
+                    
+                    if not expense_account:
+                        frappe.local.response["http_status_code"] = 400
+                        return {"success": False, "message": f"Purchase Invoice {entry.get('refund_id')} has no expense account set"}  
+                    
+                    je.append("accounts", {
+                        "account": expense_account or "",
+                        "credit_in_account_currency": 0,
+                        "debit_in_account_currency": entry.get("debit", 0)
+                    })
+
+                except frappe.DoesNotExistError:
+                    frappe.local.response["http_status_code"] = 404
+                    return {"success": False, "message": f"Purchase Invoice {entry.get('refund_id')} not found"}
+                
+                
+        je.insert(ignore_permissions=True)
+        je.submit()
+        frappe.db.commit()
+
+        frappe.local.response["http_status_code"] = 201
+        return {"success": True, "message": "Journal Entry created Successfully", "Journal Entry":je.as_dict()}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Adjustment Journal Entry API Error")
+        frappe.local.response["http_status_code"] = 500
+        return {"success": False, "message": str(e)}
+
+
