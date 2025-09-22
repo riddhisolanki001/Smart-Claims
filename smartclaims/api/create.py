@@ -297,7 +297,7 @@ def create_rejected_journal_entry(**kwargs):
     """
     Dummy JSON Input:
     {
-        "type": "Rejected Journal",
+        "type": "Rejection Journal",
         "approval_date": "2025-09-17",
         "journal_number": "JN-00045",
         "entries": [
@@ -323,7 +323,7 @@ def create_rejected_journal_entry(**kwargs):
         # Create parent Journal Entry
         je = frappe.new_doc("Journal Entry")
         je.posting_date = getdate(kwargs.get("approval_date"))
-        je.custom_type =  "Rejected Journal"
+        je.custom_type =  "Rejection Journal"
         je.custom_journal_number = kwargs.get("journal_number")
         je.voucher_type = "Journal Entry"
 
