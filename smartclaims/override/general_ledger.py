@@ -4,8 +4,6 @@ from erpnext.accounts.general_ledger import distribute_gl_based_on_cost_center_a
 from erpnext.accounts.utils import (
 	get_account_currency
 )
-from erpnext.accounts.report.general_ledger import general_ledger as gl_report
-from erpnext.accounts.report.general_ledger.general_ledger import get_gl_entries,convert_to_presentation_currency,get_party_name_map,get_conditions,get_currency
 from frappe.utils import flt
 
 def custom_process_gl_map(gl_map, merge_entries=True, precision=None, from_repost=False):
@@ -165,7 +163,8 @@ def custom_add_tax_gl_entries(self, gl_entries):
 
 PaymentEntry.add_tax_gl_entries = custom_add_tax_gl_entries
 
-
+from erpnext.accounts.report.general_ledger import general_ledger as gl_report
+from erpnext.accounts.report.general_ledger.general_ledger import get_gl_entries,convert_to_presentation_currency,get_party_name_map,get_conditions,get_currency
 
 def custom_get_gl_entries(filters, accounting_dimensions):
     currency_map = get_currency(filters)
