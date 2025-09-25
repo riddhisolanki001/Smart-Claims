@@ -4,6 +4,8 @@ from erpnext.accounts.general_ledger import distribute_gl_based_on_cost_center_a
 from erpnext.accounts.utils import (
 	get_account_currency
 )
+from erpnext.accounts.report.general_ledger import general_ledger as gl_report
+from erpnext.accounts.report.general_ledger.general_ledger import get_gl_entries,convert_to_presentation_currency,get_party_name_map,get_conditions,get_currency
 from frappe.utils import flt
 
 def custom_process_gl_map(gl_map, merge_entries=True, precision=None, from_repost=False):
@@ -164,3 +166,129 @@ def custom_add_tax_gl_entries(self, gl_entries):
 PaymentEntry.add_tax_gl_entries = custom_add_tax_gl_entries
 
 
+
+def custom_get_gl_entries(filters, accounting_dimensions):
+    currency_map = get_currency(filters)
+    select_fields = """, debit, credit, debit_in_account_currency,
+        credit_in_account_currency """
+
+    if filters.get("show_remarks"):
+        if remarks_length := frappe.db.get_single_value("Accounts Settings", "general_ledger_remarks_length"):
+            select_fields += f",substr(remarks, 1, {remarks_length}) as 'remarks'"
+        else:
+            select_fields += """,remarks"""
+
+    order_by_statement = "order by posting_date, account, creation"
+
+    if filters.get("include_dimensions"):
+        order_by_statement = "order by posting_date, creation"
+
+    if filters.get("categorize_by") == "Categorize by Voucher":
+        order_by_statement = "order by posting_date, voucher_type, voucher_no"
+    if filters.get("categorize_by") == "Categorize by Account":
+        order_by_statement = "order by account, posting_date, creation"
+
+    if filters.get("include_default_book_entries"):
+        filters["company_fb"] = frappe.get_cached_value(
+            "Company", filters.get("company"), "default_finance_book"
+        )
+
+    dimension_fields = ""
+    if accounting_dimensions:
+        dimension_fields = ", ".join(accounting_dimensions) + ","
+
+    transaction_currency_fields = ""
+    if filters.get("add_values_in_transaction_currency"):
+        transaction_currency_fields = (
+            "debit_in_transaction_currency, credit_in_transaction_currency, transaction_currency,"
+        )
+
+    # CASE 1: Supplier filter applied (special handling)
+    if filters.get("party_type") == "Supplier" and filters.get("party_name"):
+        company_abbr = frappe.get_cached_value("Company", filters.get("company"), "abbr")
+
+        gl_entries = frappe.db.sql(
+            f"""
+            select
+                name as gl_entry, posting_date, account, party_type, party,
+                voucher_type, voucher_subtype, voucher_no, {dimension_fields}
+                cost_center, project, {transaction_currency_fields}
+                against_voucher_type, against_voucher, account_currency,
+                against, is_opening, creation {select_fields}
+            from `tabGL Entry`
+            where company=%(company)s
+              and account != '04-04-003 - Withholding Taxes - {company_abbr}'
+              and not (
+                  party_type = 'Supplier'
+                  and against = party
+                  and voucher_type = 'Payment Entry'
+              )
+              {get_conditions(filters)}
+            {order_by_statement}
+            """,
+            filters,
+            as_dict=1,
+        )
+
+        # then add withholding GL manually
+        extra_entries = []
+        for gl_entry in gl_entries:
+            if gl_entry.voucher_type == "Payment Entry":
+                pe = frappe.get_doc("Payment Entry", gl_entry.voucher_no)
+                if pe.apply_tax_withholding_amount:
+                    withholding_gl = frappe.db.sql(
+                        f"""
+                        SELECT name as gl_entry, posting_date, account, party_type, party,
+                             voucher_type, voucher_no, cost_center, project,
+                            against_voucher_type, against_voucher, account_currency,
+                            against, is_opening, creation,
+                            COALESCE(debit, 0) as debit,
+                            COALESCE(credit, 0) as credit,
+                            COALESCE(debit_in_account_currency, 0) as debit_in_account_currency,
+                            COALESCE(credit_in_account_currency, 0) as credit_in_account_currency,
+                            COALESCE(debit_in_transaction_currency, 0) as debit_in_transaction_currency,
+                            COALESCE(credit_in_transaction_currency, 0) as credit_in_transaction_currency
+                        FROM `tabGL Entry`
+                        WHERE voucher_type = 'Payment Entry'
+                        AND voucher_no = %s
+                        AND account = '04-04-003 - Withholding Taxes - {company_abbr}'
+                        """,
+                        gl_entry.voucher_no,
+                        as_dict=True,
+                    )
+                    extra_entries.extend(withholding_gl)
+
+        gl_entries.extend(extra_entries)
+
+    # CASE 2: Normal flow
+    else:
+        gl_entries = frappe.db.sql(
+            f"""
+            select
+                name as gl_entry, posting_date, account, party_type, party,
+                voucher_type, voucher_subtype, voucher_no, {dimension_fields}
+                cost_center, project, {transaction_currency_fields}
+                against_voucher_type, against_voucher, account_currency,
+                against, is_opening, creation {select_fields}
+            from `tabGL Entry`
+            where company=%(company)s {get_conditions(filters)}
+            {order_by_statement}
+            """,
+            filters,
+            as_dict=1,
+        )
+
+    # Add party_name map
+    party_name_map = get_party_name_map()
+    for gl_entry in gl_entries:
+        if gl_entry.party_type and gl_entry.party:
+            gl_entry.party_name = party_name_map.get(gl_entry.party_type, {}).get(gl_entry.party)
+
+    # Currency conversion if needed
+    if filters.get("presentation_currency"):
+        return convert_to_presentation_currency(gl_entries, currency_map, filters)
+    else:
+        return gl_entries
+
+
+gl_report.get_gl_entries = custom_get_gl_entries
