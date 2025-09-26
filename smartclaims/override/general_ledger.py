@@ -161,10 +161,23 @@ def custom_add_tax_gl_entries(self, gl_entries):
                 )        
 
 
+def get_party_name_map():
+	party_map = {}
+
+	customers = frappe.get_all("Customer", fields=["name", "customer_name"])
+	party_map["Customer"] = {c.name: c.customer_name for c in customers}
+
+	suppliers = frappe.get_all("Supplier", fields=["name", "supplier_name"])
+	party_map["Supplier"] = {s.name: s.supplier_name for s in suppliers}
+
+	employees = frappe.get_all("Employee", fields=["name", "employee_name"])
+	party_map["Employee"] = {e.name: e.employee_name for e in employees}
+	return party_map
+
 PaymentEntry.add_tax_gl_entries = custom_add_tax_gl_entries
 
 from erpnext.accounts.report.general_ledger import general_ledger as gl_report
-from erpnext.accounts.report.general_ledger.general_ledger import get_gl_entries,convert_to_presentation_currency,get_party_name_map,get_conditions,get_currency
+from erpnext.accounts.report.general_ledger.general_ledger import get_gl_entries,convert_to_presentation_currency,get_conditions,get_currency
 
 def custom_get_gl_entries(filters, accounting_dimensions):
     currency_map = get_currency(filters)
