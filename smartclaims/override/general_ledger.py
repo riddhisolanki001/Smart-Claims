@@ -281,19 +281,19 @@ def custom_get_gl_entries(filters, accounting_dimensions):
                 against, is_opening, creation {select_fields}
             from `tabGL Entry`
             where company=%(company)s
-              and account != '04-04-003 - Withholding Taxes - {company_abbr}'
-              and not (
-                  party_type = 'Supplier'
-                  and against = party
-                  and voucher_type = 'Payment Entry'
-              )
-              {get_conditions(filters)}
+            and account != '04-04-003 - Withholding Taxes - {company_abbr}'
+            and not (
+                party_type = 'Supplier'
+                and against = party
+                and voucher_type = 'Payment Entry'
+            )
+            {get_conditions(filters)}
             {order_by_statement}
             """,
             filters,
             as_dict=1,
         )
-
+        
         # then add withholding GL manually
         extra_entries = []
         for gl_entry in gl_entries:
@@ -303,7 +303,7 @@ def custom_get_gl_entries(filters, accounting_dimensions):
                     withholding_gl = frappe.db.sql(
                         f"""
                         SELECT name as gl_entry, posting_date, account, party_type, party,
-                             voucher_type, voucher_no, cost_center, project,
+                            voucher_type, voucher_no, cost_center, project,
                             against_voucher_type, against_voucher, account_currency,
                             against, is_opening, creation,
                             COALESCE(debit, 0) as debit,
@@ -322,7 +322,35 @@ def custom_get_gl_entries(filters, accounting_dimensions):
                     )
                     extra_entries.extend(withholding_gl)
 
-        gl_entries.extend(extra_entries)
+        processed_entries = []
+
+        for gl_entry in gl_entries:
+            if gl_entry.voucher_type == "Payment Entry":
+                # find withholding for same voucher
+                withholding = next(
+                    (e for e in extra_entries if e.voucher_no == gl_entry.voucher_no),
+                    None
+                )
+                if withholding:
+                    net_amount = gl_entry.debit - withholding.credit
+
+                    # Adjust supplier entry
+                    gl_entry.debit = net_amount
+                    gl_entry.credit = net_amount
+                    gl_entry.debit_in_account_currency = net_amount
+                    # gl_entry.credit_in_account_currency = net_amount
+                    gl_entry.net_amount = net_amount
+
+                     # Keep withholding entry as-is, but attach net balance
+                    withholding.net_amount = net_amount
+                    processed_entries.append(gl_entry)
+                    processed_entries.append(withholding)
+                    continue  
+
+            processed_entries.append(gl_entry)
+
+        gl_entries = processed_entries
+
 
     # CASE 2: Normal flow
     else:
