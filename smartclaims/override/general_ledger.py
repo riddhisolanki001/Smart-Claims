@@ -334,18 +334,79 @@ def custom_get_gl_entries(filters, accounting_dimensions):
                 if withholding:
                     net_amount = gl_entry.debit - withholding.credit
 
-                    # Adjust supplier entry
-                    gl_entry.debit = net_amount
-                    gl_entry.credit = net_amount
-                    gl_entry.debit_in_account_currency = net_amount
-                    # gl_entry.credit_in_account_currency = net_amount
-                    gl_entry.net_amount = net_amount
+                    # Row 1: Supplier net debit
+                    supplier_entry = gl_entry.copy()
+                    supplier_entry.debit = net_amount
+                    supplier_entry.credit = 0
+                    supplier_entry.debit_in_account_currency = net_amount
+                    supplier_entry.credit_in_account_currency = 0
+                    supplier_entry.net_amount = net_amount
+                    processed_entries.append(supplier_entry)
 
-                     # Keep withholding entry as-is, but attach net balance
-                    withholding.net_amount = net_amount
-                    processed_entries.append(gl_entry)
-                    processed_entries.append(withholding)
-                    continue  
+                    # Row 2: Withholding as debit under same supplier account
+                    withholding_entry = gl_entry.copy()
+                    withholding_entry.debit = withholding.credit
+                    withholding_entry.credit = 0
+                    withholding_entry.debit_in_account_currency = withholding.credit
+                    withholding_entry.credit_in_account_currency = 0
+                    withholding_entry.net_amount = net_amount - withholding.credit
+                    processed_entries.append(withholding_entry)
+
+                    continue
+
+
+            processed_entries.append(gl_entry)
+
+        gl_entries = processed_entries
+
+       
+    elif filters.get("account"):
+        company_abbr = frappe.get_cached_value("Company", filters.get("company"), "abbr")
+
+        gl_entries = frappe.db.sql(
+            f"""
+            select
+                name as gl_entry, posting_date, account, party_type, party,
+                voucher_type, voucher_subtype, voucher_no, {dimension_fields}
+                cost_center, project, {transaction_currency_fields}
+                against_voucher_type, against_voucher, account_currency,
+                against, is_opening, creation {select_fields}
+            from `tabGL Entry`
+            where company=%(company)s
+            {get_conditions(filters)}
+            {order_by_statement}
+            """,
+            filters,
+            as_dict=1,
+        )
+
+        processed_entries = []
+
+        for gl_entry in gl_entries:
+            if gl_entry.voucher_type == "Payment Entry":
+                pe = frappe.get_doc("Payment Entry", gl_entry.voucher_no)
+                if pe.paid_from == gl_entry.account and pe.apply_tax_withholding_amount:
+                    withholding = frappe.db.get_value(
+                        "GL Entry",
+                        {
+                            "voucher_type": "Payment Entry",
+                            "voucher_no": gl_entry.voucher_no,
+                            "account": f"04-04-003 - Withholding Taxes - {company_abbr}"
+                        },
+                        "credit"
+                    )
+                    if withholding:
+                        # adjust bank side
+                        net_credit = gl_entry.credit - withholding
+
+                        bank_entry = gl_entry.copy()
+                        bank_entry.credit = net_credit
+                        bank_entry.debit = 0
+                        bank_entry.credit_in_account_currency = net_credit
+                        bank_entry.debit_in_account_currency = 0
+                        bank_entry.net_amount = -net_credit
+                        processed_entries.append(bank_entry)
+                        continue
 
             processed_entries.append(gl_entry)
 
@@ -375,7 +436,7 @@ def custom_get_gl_entries(filters, accounting_dimensions):
     for gl_entry in gl_entries:
         if gl_entry.party_type and gl_entry.party:
             gl_entry.party_name = party_name_map.get(gl_entry.party_type, {}).get(gl_entry.party)
-
+    frappe.log_error("GL ENTRIES",gl_entries)
     # Currency conversion if needed
     if filters.get("presentation_currency"):
         return convert_to_presentation_currency(gl_entries, currency_map, filters)
