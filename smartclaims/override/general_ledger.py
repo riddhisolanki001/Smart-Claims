@@ -270,6 +270,7 @@ def custom_get_gl_entries(filters, accounting_dimensions):
     # CASE 1: Supplier filter applied (special handling)
     if filters.get("party_type") == "Supplier" and filters.get("party_name"):
         company_abbr = frappe.get_cached_value("Company", filters.get("company"), "abbr")
+        wht_account = f"04-04-003 - Withholding Taxes - {company_abbr}"
 
         gl_entries = frappe.db.sql(
             f"""
@@ -281,7 +282,6 @@ def custom_get_gl_entries(filters, accounting_dimensions):
                 against, is_opening, creation {select_fields}
             from `tabGL Entry`
             where company=%(company)s
-            and account != '04-04-003 - Withholding Taxes - {company_abbr}'
             and not (
                 party_type = 'Supplier'
                 and against = party
@@ -293,72 +293,25 @@ def custom_get_gl_entries(filters, accounting_dimensions):
             filters,
             as_dict=1,
         )
-        
-        # then add withholding GL manually
-        extra_entries = []
-        for gl_entry in gl_entries:
-            if gl_entry.voucher_type == "Payment Entry":
-                pe = frappe.get_doc("Payment Entry", gl_entry.voucher_no)
+
+        adjusted_entries = []
+
+        for e in gl_entries:
+            if e["voucher_type"] == "Payment Entry":
+                pe = frappe.get_doc("Payment Entry", e["voucher_no"])
                 if pe.apply_tax_withholding_amount:
-                    withholding_gl = frappe.db.sql(
-                        f"""
-                        SELECT name as gl_entry, posting_date, account, party_type, party,
-                            voucher_type, voucher_no, cost_center, project,
-                            against_voucher_type, against_voucher, account_currency,
-                            against, is_opening, creation,
-                            COALESCE(debit, 0) as debit,
-                            COALESCE(credit, 0) as credit,
-                            COALESCE(debit_in_account_currency, 0) as debit_in_account_currency,
-                            COALESCE(credit_in_account_currency, 0) as credit_in_account_currency,
-                            COALESCE(debit_in_transaction_currency, 0) as debit_in_transaction_currency,
-                            COALESCE(credit_in_transaction_currency, 0) as credit_in_transaction_currency
-                        FROM `tabGL Entry`
-                        WHERE voucher_type = 'Payment Entry'
-                        AND voucher_no = %s
-                        AND account = '04-04-003 - Withholding Taxes - {company_abbr}'
-                        """,
-                        gl_entry.voucher_no,
-                        as_dict=True,
+                    wht_total = sum(
+                        x["debit"] for x in gl_entries 
+                        if x["voucher_no"] == e["voucher_no"] and x["against"] == wht_account
                     )
-                    extra_entries.extend(withholding_gl)
 
-        processed_entries = []
+                    if e["against"] != wht_account and e["debit"] > 0:
+                        e["debit"] -= wht_total
+                        e["debit_in_account_currency"] -= wht_total
+            # Always append entry (whether adjusted or not)
+            adjusted_entries.append(e)
 
-        for gl_entry in gl_entries:
-            if gl_entry.voucher_type == "Payment Entry":
-                # find withholding for same voucher
-                withholding = next(
-                    (e for e in extra_entries if e.voucher_no == gl_entry.voucher_no),
-                    None
-                )
-                if withholding:
-                    net_amount = gl_entry.debit - withholding.credit
-
-                    # Row 1: Supplier net debit
-                    supplier_entry = gl_entry.copy()
-                    supplier_entry.debit = net_amount
-                    supplier_entry.credit = 0
-                    supplier_entry.debit_in_account_currency = net_amount
-                    supplier_entry.credit_in_account_currency = 0
-                    supplier_entry.net_amount = net_amount
-                    processed_entries.append(supplier_entry)
-
-                    # Row 2: Withholding as debit under same supplier account
-                    withholding_entry = gl_entry.copy()
-                    withholding_entry.debit = withholding.credit
-                    withholding_entry.credit = 0
-                    withholding_entry.debit_in_account_currency = withholding.credit
-                    withholding_entry.credit_in_account_currency = 0
-                    withholding_entry.net_amount = net_amount - withholding.credit
-                    processed_entries.append(withholding_entry)
-
-                    continue
-
-
-            processed_entries.append(gl_entry)
-
-        gl_entries = processed_entries
-
+        gl_entries = adjusted_entries
        
     elif filters.get("account"):
         company_abbr = frappe.get_cached_value("Company", filters.get("company"), "abbr")
@@ -436,7 +389,6 @@ def custom_get_gl_entries(filters, accounting_dimensions):
     for gl_entry in gl_entries:
         if gl_entry.party_type and gl_entry.party:
             gl_entry.party_name = party_name_map.get(gl_entry.party_type, {}).get(gl_entry.party)
-    frappe.log_error("GL ENTRIES",gl_entries)
     # Currency conversion if needed
     if filters.get("presentation_currency"):
         return convert_to_presentation_currency(gl_entries, currency_map, filters)
