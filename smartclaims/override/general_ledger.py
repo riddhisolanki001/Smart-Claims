@@ -63,7 +63,7 @@ def custom_add_tax_gl_entries(self, gl_entries):
             if not d.included_in_paid_amount:
                 reversal_entry = {
                     "account": first_account,  # <-- Use first GL entry account
-                    "against": against,
+                    "against": d.account_head,
                     rev_dr_or_cr: d.tax_amount,
                     rev_dr_or_cr + "_in_account_currency": d.base_tax_amount if account_currency == self.company_currency else d.tax_amount,
                     rev_dr_or_cr + "_in_transaction_currency": d.base_tax_amount / self.transaction_exchange_rate,
