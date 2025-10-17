@@ -1,4 +1,4 @@
-import frappe
+import frappe,time
 from erpnext.accounts import general_ledger as gl_module
 from erpnext.accounts.general_ledger import distribute_gl_based_on_cost_center_allocation, toggle_debit_credit_if_negative,merge_similar_entries
 from erpnext.accounts.utils import (
@@ -10,6 +10,7 @@ from frappe.utils import cstr, getdate
 
 
 def custom_process_gl_map(gl_map, merge_entries=True, precision=None, from_repost=False):
+    time.sleep(0.5)
     if not gl_map:
         return []
 
@@ -27,15 +28,15 @@ def custom_process_gl_map(gl_map, merge_entries=True, precision=None, from_repos
             gl_map = toggle_debit_credit_if_negative(gl_map)
             return gl_map
         
-        else:
-            if gl_map[0].voucher_type != "Period Closing Voucher":
-                gl_map = distribute_gl_based_on_cost_center_allocation(gl_map, precision, from_repost)
+    else:
+        if gl_map[0].voucher_type != "Period Closing Voucher":
+            gl_map = distribute_gl_based_on_cost_center_allocation(gl_map, precision, from_repost)
 
-            if merge_entries:
-                gl_map = merge_similar_entries(gl_map, precision)
+        if merge_entries:
+            gl_map = merge_similar_entries(gl_map, precision)
 
-            gl_map = toggle_debit_credit_if_negative(gl_map)
-            return gl_map
+        gl_map = toggle_debit_credit_if_negative(gl_map)
+        return gl_map
 
 gl_module.process_gl_map = custom_process_gl_map
 
@@ -43,7 +44,9 @@ gl_module.process_gl_map = custom_process_gl_map
 from erpnext.accounts.doctype.payment_entry.payment_entry import PaymentEntry
 
 def custom_add_tax_gl_entries(self, gl_entries):
+    time.sleep(0.5)
     if self.apply_tax_withholding_amount:
+        frappe.log_error("Applying Withholding Tax GL Entries", f"Payment Entry: {self.name}")
         if gl_entries:
             first_account = gl_entries[0]["account"]  # Store first account
 
@@ -235,6 +238,7 @@ def convert_to_presentation_currency(gl_entries, currency_info, filters=None):
 
 
 def custom_get_gl_entries(filters, accounting_dimensions):
+    time.sleep(0.5)
     currency_map = get_currency(filters)
     select_fields = """, debit, credit, debit_in_account_currency,
         credit_in_account_currency """
@@ -271,47 +275,75 @@ def custom_get_gl_entries(filters, accounting_dimensions):
         )
 
     # CASE 1: Supplier filter applied (special handling)
-    if filters.get("party_type") == "Supplier" and filters.get("party_name"):
+    parties = filters.get("party")
+
+    if filters.get("party_type") == "Supplier" and parties:
+        # Ensure it's a list
+        if isinstance(parties, str):
+            parties = [parties]
+
+        cleaned_parties = []
+        for p in parties:
+            if " - " in p:
+                cleaned_parties.append(p.split(" - ")[0].strip())
+            else:
+                cleaned_parties.append(p.strip())
+
+        # Get company abbreviation
         company_abbr = frappe.get_cached_value("Company", filters.get("company"), "abbr")
         wht_account = f"04-04-003 - Withholding Taxes - {company_abbr}"
 
+        # Party condition for SQL
+        party_condition = "AND party IN %(parties)s"
+
+        # --- Fetch GL Entries ---
         gl_entries = frappe.db.sql(
             f"""
-            select
-                name as gl_entry, posting_date, account, party_type, party,
+            SELECT
+                name AS gl_entry, posting_date, account, party_type, party,
                 voucher_type, voucher_subtype, voucher_no, {dimension_fields}
                 cost_center, project, {transaction_currency_fields}
                 against_voucher_type, against_voucher, account_currency,
                 against, is_opening, creation {select_fields}
-            from `tabGL Entry`
-            where company=%(company)s
-            and not (
+            FROM `tabGL Entry`
+            WHERE company = %(company)s
+            AND party_type = 'Supplier'
+            {party_condition}
+            AND NOT (
                 party_type = 'Supplier'
-                and against = party
-                and voucher_type = 'Payment Entry'
+                AND against IN %(parties)s
+                AND voucher_type = 'Payment Entry'
             )
             {get_conditions(filters)}
             {order_by_statement}
             """,
-            filters,
+            {**filters, "parties": tuple(cleaned_parties)},
             as_dict=1,
         )
 
+        # --- Adjust WHT values ---
         adjusted_entries = []
+        payment_entry_cache = {}
 
         for e in gl_entries:
             if e["voucher_type"] == "Payment Entry":
-                pe = frappe.get_doc("Payment Entry", e["voucher_no"])
+                # Cache payment entries to reduce DB hits
+                if e["voucher_no"] not in payment_entry_cache:
+                    payment_entry_cache[e["voucher_no"]] = frappe.get_doc("Payment Entry", e["voucher_no"])
+                pe = payment_entry_cache[e["voucher_no"]]
+
                 if pe.apply_tax_withholding_amount:
+                    # Compute total WHT for this payment
                     wht_total = sum(
-                        x["debit"] for x in gl_entries 
+                        x["debit"] for x in gl_entries
                         if x["voucher_no"] == e["voucher_no"] and x["against"] == wht_account
                     )
 
+                    # Reduce debit if not the WHT account
                     if e["against"] != wht_account and e["debit"] > 0:
                         e["debit"] -= wht_total
                         e["debit_in_account_currency"] -= wht_total
-            # Always append entry (whether adjusted or not)
+
             adjusted_entries.append(e)
 
         gl_entries = adjusted_entries
@@ -416,6 +448,7 @@ def get_account_type_map(company):
     return account_type_map
 
 def custom_get_accountwise_gle(filters, accounting_dimensions, gl_entries, gle_map, totals):
+    time.sleep(0.5)
     entries = []
     consolidated_gle = OrderedDict()
     group_by = group_by_field(filters.get("categorize_by"))
@@ -463,83 +496,107 @@ def custom_get_accountwise_gle(filters, accounting_dimensions, gl_entries, gle_m
 
     from_date, to_date = getdate(filters.from_date), getdate(filters.to_date)
     show_opening_entries = filters.get("show_opening_entries")
- 
-    apply_tax_withholding = False
-
-    # Get all unique voucher_nos from the GL entries
     if filters.get("categorize_by") == "Categorize by Voucher (Consolidated)":
         voucher_nos = list({gle.get("voucher_no") for gle in gl_entries if gle.get("voucher_type") == "Payment Entry"})
 
+        vouchers_with_tds = []
         for voucher_no in voucher_nos:
-            # Safely fetch Payment Entry
             if frappe.db.exists("Payment Entry", voucher_no):
                 apply_flag = frappe.db.get_value("Payment Entry", voucher_no, "apply_tax_withholding_amount")
                 if apply_flag:
-                    apply_tax_withholding = True
-                    break
+                    vouchers_with_tds.append(voucher_no)
 
-        if apply_tax_withholding:
-            for gle in gl_entries:
+        filtered_tds_gl_entries = [
+            gle for gle in gl_entries
+            if gle.get("voucher_no") in vouchers_with_tds
+            and (from_date <= getdate(gle.posting_date) <= to_date
+                or (cstr(gle.is_opening) == "Yes" and show_opening_entries))
+            and (not filters.get("party") or gle.get("party") in filters.get("party"))
+        ]
+
+        other_gl_entries = [
+            gle for gle in gl_entries
+            if gle.get("voucher_no") not in vouchers_with_tds
+            and (from_date <= getdate(gle.posting_date) <= to_date
+                or (cstr(gle.is_opening) == "Yes" and show_opening_entries))
+            and (not filters.get("party") or gle.get("party") in filters.get("party"))
+        ]
+
+        # Log TDS vouchers
+        if filtered_tds_gl_entries:
+            for gle in filtered_tds_gl_entries:
+                msg = (
+                    f"TDS Voucher → {gle.get('voucher_no')} | "
+                    f"Account: {gle.get('account')} | "
+                    f"Posting Date: {gle.get('posting_date')} | "
+                    f"Debit: {gle.get('debit')} | Credit: {gle.get('credit')}"
+                )
                 update_value_in_dict(totals, "total", gle)
                 update_value_in_dict(totals, "closing", gle)
 
-            entries = gl_entries[:]  # copy all as-is
-            return totals, entries
-
-
-    # --- otherwise continue your normal logic ---
-    for gle in gl_entries:
-        group_by_value = gle.get(group_by)
-        gle.voucher_type = gle.voucher_type
-
-        if gle.posting_date < from_date or (cstr(gle.is_opening) == "Yes" and not show_opening_entries):
-            if not group_by_voucher_consolidated:
-                update_value_in_dict(gle_map[group_by_value].totals, "opening", gle)
-                update_value_in_dict(gle_map[group_by_value].totals, "closing", gle)
-
-            update_value_in_dict(totals, "opening", gle)
-            update_value_in_dict(totals, "closing", gle)
-
-        elif gle.posting_date <= to_date or (cstr(gle.is_opening) == "Yes" and show_opening_entries):
-            if not group_by_voucher_consolidated:
-                update_value_in_dict(gle_map[group_by_value].totals, "total", gle)
-                update_value_in_dict(gle_map[group_by_value].totals, "closing", gle)
+        # Log Non-TDS vouchers
+        if other_gl_entries:
+            for gle in other_gl_entries:
                 update_value_in_dict(totals, "total", gle)
                 update_value_in_dict(totals, "closing", gle)
 
-                gle_map[group_by_value].entries.append(gle)
+        entries = filtered_tds_gl_entries + other_gl_entries
 
-            elif group_by_voucher_consolidated:
-                keylist = [
-                    gle.get("posting_date"),
-                    gle.get("voucher_type"),
-                    gle.get("voucher_no"),
-                    gle.get("account"),
-                    gle.get("party_type"),
-                    gle.get("party"),
-                ]
+        return totals, entries
+    
+    else:
+        for gle in gl_entries:
+            group_by_value = gle.get(group_by)
+            gle.voucher_type = gle.voucher_type
 
-                if immutable_ledger:
-                    keylist.append(gle.get("creation"))
+            if gle.posting_date < from_date or (cstr(gle.is_opening) == "Yes" and not show_opening_entries):
+                if not group_by_voucher_consolidated:
+                    update_value_in_dict(gle_map[group_by_value].totals, "opening", gle)
+                    update_value_in_dict(gle_map[group_by_value].totals, "closing", gle)
 
-                if filters.get("include_dimensions"):
-                    for dim in accounting_dimensions:
-                        keylist.append(gle.get(dim))
-                    keylist.append(gle.get("cost_center"))
-                    keylist.append(gle.get("project"))
+                update_value_in_dict(totals, "opening", gle)
+                update_value_in_dict(totals, "closing", gle)
 
-                key = tuple(keylist)
-                if key not in consolidated_gle:
-                    consolidated_gle.setdefault(key, gle)
-                else:
-                    update_value_in_dict(consolidated_gle, key, gle)
+            elif gle.posting_date <= to_date or (cstr(gle.is_opening) == "Yes" and show_opening_entries):
+                if not group_by_voucher_consolidated:
+                    update_value_in_dict(gle_map[group_by_value].totals, "total", gle)
+                    update_value_in_dict(gle_map[group_by_value].totals, "closing", gle)
+                    update_value_in_dict(totals, "total", gle)
+                    update_value_in_dict(totals, "closing", gle)
 
-    for value in consolidated_gle.values():
-        update_value_in_dict(totals, "total", value)
-        update_value_in_dict(totals, "closing", value)
-        entries.append(value)
+                    gle_map[group_by_value].entries.append(gle)
 
-    return totals, entries
+                elif group_by_voucher_consolidated:
+                    keylist = [
+                        gle.get("posting_date"),
+                        gle.get("voucher_type"),
+                        gle.get("voucher_no"),
+                        gle.get("account"),
+                        gle.get("party_type"),
+                        gle.get("party"),
+                    ]
+
+                    if immutable_ledger:
+                        keylist.append(gle.get("creation"))
+
+                    if filters.get("include_dimensions"):
+                        for dim in accounting_dimensions:
+                            keylist.append(gle.get(dim))
+                        keylist.append(gle.get("cost_center"))
+                        keylist.append(gle.get("project"))
+
+                    key = tuple(keylist)
+                    if key not in consolidated_gle:
+                        consolidated_gle.setdefault(key, gle)
+                    else:
+                        update_value_in_dict(consolidated_gle, key, gle)
+
+        for value in consolidated_gle.values():
+            update_value_in_dict(totals, "total", value)
+            update_value_in_dict(totals, "closing", value)
+            entries.append(value)
+
+        return totals, entries
 
 
 gl_report.get_gl_entries = custom_get_gl_entries
