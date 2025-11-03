@@ -497,6 +497,10 @@ def custom_get_accountwise_gle(filters, accounting_dimensions, gl_entries, gle_m
     from_date, to_date = getdate(filters.from_date), getdate(filters.to_date)
     show_opening_entries = filters.get("show_opening_entries")
     if filters.get("categorize_by") == "Categorize by Voucher (Consolidated)":
+        for gle in gl_entries:
+            if gle.posting_date < from_date or (cstr(gle.is_opening) == "Yes" and not show_opening_entries):
+                update_value_in_dict(totals, "opening", gle)
+                update_value_in_dict(totals, "closing", gle)
         voucher_nos = list({gle.get("voucher_no") for gle in gl_entries if gle.get("voucher_type") == "Payment Entry"})
 
         vouchers_with_tds = []
