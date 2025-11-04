@@ -545,6 +545,15 @@ def custom_get_accountwise_gle(filters, accounting_dimensions, gl_entries, gle_m
                 update_value_in_dict(totals, "closing", gle)
 
         entries = filtered_tds_gl_entries + other_gl_entries
+        
+        entries.sort(
+            key=lambda gle: (
+                getdate(gle.get("posting_date")),
+                gle.get("account") or "",
+                gle.get("voucher_no") or "",
+                gle.get("creation") or "",
+            )
+        )
 
         return totals, entries
     
