@@ -1,0 +1,25 @@
+[
+ {
+  "align": "Left",
+  "content": "<table>\n    <tbody>\n    <tr>\n    <td colspan=\"4\"><img src=\"/files/company_logo.png\" alt=\"Company Logo\" width=\"270\" height=\"120\"></td>\n    <td colspan=\"8\" style=\"font-weight:bold;\">\n        <span style=\"font-size:18px;\">NATIONWIDE MEDICAL INSURANCE CO. LTD.<br></span>\n        <span style=\"font-size:15px; line-height: 1.8;\">PMB 108 K.I.A ACCRA Digital Address: GA-053-5737<br></span>\n        <span style=\"font-size:13px; line-height: 1.8;\">Tel: (0302) 226 892 Toll Free: (0800) 222 222<br>\n        Email: finance@nationwidemh.com<br>\n        Website: www.nationwidemh.com</span>\n    </td>\n    </tr>\n    <tr>\n        <td></td>\n    </tr>\n</tbody></table>",
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Letter Head",
+  "footer": null,
+  "footer_align": "Left",
+  "footer_image": null,
+  "footer_image_height": 0.0,
+  "footer_image_width": 0.0,
+  "footer_script": null,
+  "footer_source": "HTML",
+  "header_script": null,
+  "image": null,
+  "image_height": 0.0,
+  "image_width": 0.0,
+  "is_default": 0,
+  "letter_head_name": "General Ledger",
+  "modified": "2025-11-10 08:16:19.381807",
+  "name": "General Ledger",
+  "source": "HTML"
+ }
+]
