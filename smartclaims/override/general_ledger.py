@@ -636,7 +636,7 @@ def custom_report_to_pdf(html=None, orientation="Landscape", **kwargs):
         download_url = (
             f"{url}/api/method/frappe.utils.print_format.download_pdf"
             "?doctype=Report&name=General%20Ledger&format=General%20Ledger"
-            "&no_letterhead=0&letterhead=General%20Ledger&_lang=en-GB"
+            "&no_letterhead=1&letterhead=No%20Letterhead&_lang=en-GB"
         )
 
         frappe.local.response.update({
