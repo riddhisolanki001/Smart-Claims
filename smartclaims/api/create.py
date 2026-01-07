@@ -213,6 +213,7 @@ def create_sales_invoice(**kwargs):
 
                 si_doc.append("items", {
                     "item_code": item.get("plan"),
+                    "description": item.get("description"),
                     "qty": qty,
                     "rate": rate,
                     "amount": amount
