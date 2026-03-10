@@ -186,7 +186,19 @@ def create_sales_invoice(**kwargs):
         if not invoice_number or not company or not posting_date:
             frappe.local.response["http_status_code"] = 400
             return {"status": "failed", "error": "Invoice Number, Company ID and Invoice Date are required"}
-    
+
+        # Validation to check insurance Type
+        insurance_type = kwargs.get("insurance_type")
+        if insurance_type:
+            normalized = insurance_type.strip().lower()
+
+            if normalized == "tpa":
+                insurance_type = "TPA"
+            elif normalized == "pure insurance":
+                insurance_type = "Pure Insurance"
+            else:
+                frappe.local.response["http_status_code"] = 400
+                return {"status": "failed","error": "Error in Insurance Type"}
 
         # Create Sales Invoice doc
         si_doc = frappe.get_doc({
@@ -198,7 +210,7 @@ def create_sales_invoice(**kwargs):
             "custom_cover_period_start": kwargs.get("cover_period_start"),
             "custom_cover_period_end": kwargs.get("cover_period_end"),
             "custom_next_invoice_date": kwargs.get("next_invoice_date"),
-            "custom_insurance_type": kwargs.get("insurance_type"),
+            "custom_insurance_type": insurance_type,
             "custom_card_option": kwargs.get("card_option"),
             "items": []
         })
