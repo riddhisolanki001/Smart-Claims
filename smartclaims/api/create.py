@@ -236,6 +236,7 @@ def create_sales_invoice(**kwargs):
 
         # Insert doc
         si_doc.insert(ignore_permissions=True)
+        si_doc.submit()
         frappe.db.commit()
 
         frappe.local.response["http_status_code"] = 201
@@ -289,6 +290,7 @@ def create_credit_note(**kwargs):
 
         # 🔹 Insert doc
         credit_note_doc.insert(ignore_permissions=True)
+        credit_note_doc.submit()
         frappe.db.commit()
 
         frappe.local.response["http_status_code"] = 201
