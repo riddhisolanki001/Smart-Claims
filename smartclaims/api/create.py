@@ -212,6 +212,7 @@ def create_sales_invoice(**kwargs):
             "custom_next_invoice_date": kwargs.get("next_invoice_date"),
             "custom_insurance_type": insurance_type,
             "custom_card_option": kwargs.get("card_option"),
+            "custom_narration":kwargs.get("narration"),
             "items": []
         })
 
