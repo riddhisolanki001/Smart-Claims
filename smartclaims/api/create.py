@@ -183,7 +183,7 @@ def create_sales_invoice(**kwargs):
         # Mandatory fields
         invoice_number = kwargs.get("invoice_number")
         company = kwargs.get("company_id")
-        customer = kwargs.get("customer")
+        customer = kwargs.get("company_id")
         posting_date = kwargs.get("invoice_date")
 
         if not invoice_number or not company or not posting_date:
