@@ -123,6 +123,7 @@ def create_purchase_invoice(**kwargs):
             "custom_refund_id":custom_refund_id,
             "posting_date": posting_date,
             "bill_no": kwargs.get("supplier_invoice_no", ""),
+            "remarks": kwargs.get("remarks", ""),
             "items": []
         })
 
@@ -158,7 +159,9 @@ def create_purchase_invoice(**kwargs):
 
         # Insert doc
         pi_doc.insert(ignore_permissions=True)
+        pi_doc.submit()
         frappe.db.commit()
+        
 
         frappe.local.response["http_status_code"] = 201
         return {"status": "success", "name": pi_doc.name}
@@ -180,7 +183,7 @@ def create_sales_invoice(**kwargs):
         # Mandatory fields
         invoice_number = kwargs.get("invoice_number")
         company = kwargs.get("company_id")
-        customer = kwargs.get("company_id")
+        customer = kwargs.get("customer")
         posting_date = kwargs.get("invoice_date")
 
         if not invoice_number or not company or not posting_date:
