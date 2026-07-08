@@ -104,15 +104,15 @@ def create_purchase_invoice(**kwargs):
         if invoice_type == "Claims":
             supplier = kwargs.get("provider_id")
             custom_refund_id = None
-            posting_date = kwargs.get("invoice_date")
-            if not supplier or not posting_date:
+            custom_invoice_date = kwargs.get("invoice_date")
+            if not supplier or not custom_invoice_date:
                 frappe.local.response["http_status_code"] = 400
                 return {"status": "failed", "error": "Supplier and Invoice Date are required"}
         else:
             supplier = kwargs.get("refund_id")  
             custom_refund_id = kwargs.get("refund_id")
-            posting_date = kwargs.get("request_date")
-            if not custom_refund_id or not posting_date:
+            custom_invoice_date = kwargs.get("request_date")
+            if not custom_refund_id or not custom_invoice_date:
                 frappe.local.response["http_status_code"] = 400
                 return {"status": "failed", "error": "Refund ID and Request Date are required"}
 
@@ -121,7 +121,7 @@ def create_purchase_invoice(**kwargs):
             "doctype": "Purchase Invoice",
             "supplier": supplier,
             "custom_refund_id":custom_refund_id,
-            "posting_date": posting_date,
+            "custom_invoice_date": custom_invoice_date,
             "bill_no": kwargs.get("supplier_invoice_no", ""),
             "remarks": kwargs.get("remarks", ""),
             "items": []
@@ -184,9 +184,9 @@ def create_sales_invoice(**kwargs):
         invoice_number = kwargs.get("invoice_number")
         company = kwargs.get("company_id")
         customer = kwargs.get("company_id")
-        posting_date = kwargs.get("invoice_date")
+        custom_invoice_date = kwargs.get("invoice_date")
 
-        if not invoice_number or not company or not posting_date:
+        if not invoice_number or not company or not custom_invoice_date:
             frappe.local.response["http_status_code"] = 400
             return {"status": "failed", "error": "Invoice Number, Company ID and Invoice Date are required"}
 
@@ -207,7 +207,7 @@ def create_sales_invoice(**kwargs):
         si_doc = frappe.get_doc({
             "doctype": "Sales Invoice",
             "custom_company_id": company,
-            "posting_date": posting_date,
+            "custom_invoice_date": custom_invoice_date,
             "customer":customer,
             "custom_invoice_number": invoice_number,
             "custom_cover_period_start": kwargs.get("cover_period_start"),
