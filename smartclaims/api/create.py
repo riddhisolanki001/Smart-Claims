@@ -116,16 +116,32 @@ def create_purchase_invoice(**kwargs):
                 frappe.local.response["http_status_code"] = 400
                 return {"status": "failed", "error": "Refund ID and Request Date are required"}
 
+            # ---------- Only this part added ----------
+            if invoice_type == "Medical Refunds":
+                custom_account_name = kwargs.get("custom_account_name")
+                if not custom_account_name:
+                    frappe.local.response["http_status_code"] = 400
+                    return {
+                        "status": "failed",
+                        "error": "custom_account_name is mandatory for Medical Refunds"
+                    }
+            # ------------------------------------------
+
         # Create Purchase Invoice doc
         pi_doc = frappe.get_doc({
             "doctype": "Purchase Invoice",
             "supplier": supplier,
-            "custom_refund_id":custom_refund_id,
+            "custom_refund_id": custom_refund_id,
             "custom_invoice_date": custom_invoice_date,
             "bill_no": kwargs.get("supplier_invoice_no", ""),
             "remarks": kwargs.get("remarks", ""),
             "items": []
         })
+
+        # ---------- Set credit_to ----------
+        if invoice_type == "Medical Refunds":
+            pi_doc.credit_to = kwargs.get("custom_account_name")
+        # ----------------------------------
 
         # Add items with calculated rate if provided
         total_qty = float(kwargs.get("total_qty", 0))
@@ -150,7 +166,7 @@ def create_purchase_invoice(**kwargs):
 
         # Map all other fields dynamically
         meta = frappe.get_meta("Purchase Invoice")
-        skip_fields = ("provider_id", "invoice_date", "supplier_invoice_no", "items", "total_amount", "default_item_code")
+        skip_fields = ("provider_id", "invoice_date", "supplier_invoice_no", "items", "total_amount", "default_item_code", "custom_account_name")
         for key, value in kwargs.items():
             if key in skip_fields:
                 continue
